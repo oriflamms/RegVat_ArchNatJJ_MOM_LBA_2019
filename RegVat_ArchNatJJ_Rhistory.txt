@@ -1,0 +1,1666 @@
+#########################################################################################################
+#########################################################################################################
+######## 																						#########
+######## Data preparation for the analysis of writer and script evolution within 		 		#########
+######## 					the Registra Vaticana	(Vaticano, Archivio Apostolico, Reg. Vat.)	#########
+######## 					the Chancery registers (Paris, Archives Nationales, JJ)				#########
+######## 					images from Monasterium and Lichtbildarchiv (LBA)					#########
+######## 																						#########
+######## 																						#########
+#########################################################################################################
+######################################################################################################### 
+######################################################################################################### 
+
+
+
+install.packages(c("tidyverse", "dplyr", "ggplot2", "plotly", "ggforce", "htmlwidgets"))
+install.packages(c("Rtsne"))
+install.packages(c("FactoMineR", "factoextra"))
+install.packages("gapminder", "readxl")
+library(gapminder)
+library(tidyverse)
+library(dplyr)
+library(plotly)
+library(ggplot2)
+library(ggforce)
+library(FactoMineR)
+library(factoextra)
+library(tsne) 
+library(Rtsne)
+library(Rcpp)
+library(htmlwidgets)
+#library(MASS)
+#library(gridExtra)
+#library(stringr)
+#library(network)
+#library(ggnetwork)
+#library(ggrepel)
+library(readxl)
+
+
+#########################################################################################################
+######## 																						#########
+######## Corpus								 		 											#########
+######## 																						#########
+#########################################################################################################
+
+rm(list = ls())
+setwd("C:/Users/stutzmann/Documents/GitHub/RegVat_ArchNatJJ_MOM_LBA_2019") 			#Set the working directory
+
+# features 	<- read.csv("data/DHIP_merged_features.csv")
+# metadata 	<- read.csv("data/DHIP_all_merged_metadata.csv")
+DATA 		<- read.csv("data/DHIP_all_merged_features_metadata.tsv", sep="\t", header=TRUE)
+saveRDS(DATA, file="rds/ALL_merged_features_metadata.RDS", compress=TRUE)
+# DATA		<- readRDS("rds/ALL_merged_features_metadata.RDS")								#equivalent but faster
+
+
+
+
+#########################################################################################################
+######## 																						#########
+######## Analysis on RVAT (Registra Vaticana) 		 											#########
+######## 																						#########
+#########################################################################################################
+
+
+data.rvat <- subset(DATA, DATA$"Corpus" == "RVAT")
+
+#--------------------------------------------------------------------------------------------------------
+#-----------------------------------	General statistics 	-------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+
+rvat.initial_corpus <- read_excel("initial_corpus/RVAT_metadata.xlsx", sheet = "Liste-images")
+#n1 <- count(rvat.initial_corpus, Numero)
+n2 <- ggplot(rvat.initial_corpus, aes(x=Numero)) + 
+			geom_histogram(color="black", fill="white", binwidth = 1) +
+			#stat_bin(aes(y=..Numero.., label=..Numero..), geom="text", vjust=-.5) 
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			scale_x_continuous(breaks=seq(0,530,10)) +
+			ylab("Nombre d'images") + 
+			xlab("Numéro de registre Reg. Vat. (registres avec lettre classés au numéro principal, par ex. Reg. Vat. 244, 244A, 244F, 244L)")
+n3 <- ggplot(rvat.initial_corpus, aes(x=DATE)) + 
+			geom_histogram(color="black", fill="white", binwidth = 1) +
+			#stat_bin(aes(y=..Numero.., label=..Numero..), geom="text", vjust=-.5) 
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			xlim(800, 1500) +
+			#scale_x_continuous(breaks=seq(800,1520,10)) +
+			ylab("Nombre d'images") + 
+			xlab("Date médiane du registre de la page numérisée")
+
+n3 <- arrangeGrob(n2, n3, ncol=1,
+		top="Corpus initial RVAT")
+ggsave(file="images/rvat.initial_corpus.png", n, dpi=200, device="png", width=10, height=10)
+ 
+ 
+ 
+ 
+
+
+n5 <- ggplot(data.rvat, aes(x=Date)) + 
+			geom_histogram(color="black", fill="white", binwidth = 1) +
+			#stat_bin(aes(y=..Numero.., label=..Numero..), geom="text", vjust=-.5) 
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			xlim(800, 1500) +
+			#scale_x_continuous(breaks=seq(800,1520,10)) +
+			ylab("Nombre d'images") + 
+			xlab("Date médiane du registre de la page numérisée")
+
+ggsave(file="images/rvat.effective_corpus.png", n5, dpi=200, device="png", width=10, height=5)
+ 
+n6 <- ggplot(data.rvat, aes(x=Date)) + 
+			geom_histogram(color="black", fill="white", binwidth = 1) +
+			#stat_bin(aes(y=..Numero.., label=..Numero..), geom="text", vjust=-.5) 
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			xlim(1150, 1500) +
+			#scale_x_continuous(breaks=seq(1150,1500,10)) +
+			ylab("Nombre d'images") + 
+			xlab("Date médiane du registre de la page numérisée")
+
+ggsave(file="images/rvat.effective_corpus.byDate1150.png", n6, dpi=200, device="png", width=10, height=5)
+ 
+
+#--------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------
+#-----------------------------------	PCA (not used in article) 	-------------------------------------
+#--------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+DHIP.rvat01to20 <- subset(data.rvat, startsWith(data.rvat$"Volume", "RVAT0"))					#Nota: misses RVAT7A and RVAT8A
+DHIP.rvat01to20.pca <- PCA(data.rvat01to20, quali.sup=3073:3076, ncp=5, scale.unit=TRUE)
+fviz_pca_ind(DHIP.rvat01to20.pca, axes = c(1, 2), ellipse.level=0.8, 
+		col.ind = DHIP.rvat01to20$"Volume", geom.ind = "text, point", 
+		addEllipses = TRUE, legend.title = "RVAT Volumes", invisible="ind.sup")
+
+# The preceding lines produce a graph all images of RVAT1 to RVAT20 with one ellipse per volume, without points and without labels (behaviour of << geom.ind = "text, point" >>
+# As PCA are very sensitive to outliers, it is not directly useful. One can clean the set from outliers, but this will be done at a later stage.
+
+
+
+
+#########################################################################################################
+######## 																						#########
+######## TSNE / RTSNE	(RVAT1 - RVAT9) 														#########
+####### 																						#########
+#########################################################################################################
+
+data.rvat.1.9 <- subset(data.rvat, startsWith(data.rvat$"Volume", "RVAT00")|
+				data.rvat$"Volume" == "RVAT7A"|
+				data.rvat$"Volume" == "RVAT8A")
+unique(data.rvat.1.9$Volume)
+colnames(data.rvat.1.9)
+
+
+#----- set a short name to have a lighter and generic code
+data <- as.data.frame(data.rvat.1.9)
+
+
+#--------------------------------------------------------------------------------------------------------
+#-----------------------------------	TSNE ------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+
+#----- compute tsne
+set.seed(4000)
+data.tsne <- tsne(data[,1:3072], 								# [,1:3072] : limits to numerical variables
+					initial_config = NULL, k = 2, 				# [,3073:3076] = "Corpus", "Volume", "Date", "Type1"
+					initial_dims = 30, perplexity = 30, 
+					max_iter = 1000, 
+					min_cost = 0, epoch_callback = NULL, whiten = TRUE, epoch=100)
+saveRDS(data.tsne, file="rds/rvat.1.9.tsne.seed4000.RDS", compress=TRUE)		
+
+					
+#----- Convert the result into dataframe and retrieve descriptive metadata
+data.tsne.frame <- data.frame(x = data.tsne[,1], y = data.tsne[,2])
+rownames(data.tsne.frame) <- rownames(data)
+data.tsne.frame$Volume <- data$Volume
+data.tsne.frame$Date <- data$Date
+head(data.tsne.frame)
+
+#----- Plot TSNE
+g <- ggplot(data.tsne.frame, aes(x=x, y=y)) + 
+				geom_point(aes(col=Volume))
+				
+# with ellipse on two clusters from a single volume
+g2 <- g + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT003' & x > -75 & x < 20 & y < -50))) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT003' & x > 50 & y > -25)))
+g2
+
+
+
+#--------------------------------------------------------------------------------------------------------
+#-----------------------------------	RTSNE     --------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+data <- as.data.frame(data.rvat.1.9)
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+saveRDS(data.Rtsne, file="rds/rvat.1.9.Rtsne.seed4000.theta0.RDS", compress=TRUE)		
+
+#----- Convert the result into dataframe and retrieve descriptive metadata	
+
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date")
+data.Rtsne.frame$Volume <- gsub("0", "", data.Rtsne.frame$Volume)
+head(data.Rtsne.frame)
+
+
+#-------- Plot
+
+h <- ggplot(data.Rtsne.frame, aes(x=x, y=y, label=rownames(data.Rtsne.frame))) + 
+				geom_point(aes(col=Volume, shape=Volume)) +
+				scale_shape_manual(values=c(1, 3, 5, 7, 16, 17, 4, 6, 8, 10, 2))
+h
+
+# with ellipse on two clusters from a single volume
+h2 <- h +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT1' & -75.1 < x & x < -62.2 & -9.742 < y & y < 3.68)), 
+			tol=0.001,
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",
+			label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT1' & -67.7 < x & x < -51.8 & -27.6 < y & y < -17)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT2' & -52 < x & x < -46 & -48 < y & y < -43)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT2' & -37.5 < x & x < -6.6 & -65 < y & y < -31)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT3' & 31 < x & x < 58 & 15.5 < y & y < 48)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT3' & 54 < x & x < 67 & -5.6 < y & y < 10.2)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT3' & 60 < x & x < 67.3 & -28.7 < y & y < -17.7)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT4' & 8 < x & x < 12 & -58 < y & y < -53)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT4' & -60 < x & x < -23 & 0 < y & y < 38)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		#geom_mark_ellipse(aes(x=x, y=y, 
+		#	color=Volume, label="RVAT4_188v-220r", 
+		#	filter = (Volume == 'RVAT4' & -40 < x & x < -23 & 21 < y & y < 34)),
+		#	label.fontsize = 6, 
+		#	con.linetype=2)
+		stat_ellipse(data = . %>% filter(Volume == "RVAT4" & -40 < x & x < -23 & 21 < y & y < 34), 
+				inherit.aes=FALSE, aes(x=x,y=y), 
+				linetype = 2, level=0.8) +
+		# geom_mark_ellipse(aes(x=x, y=y, 
+		#	color=Volume, label=Volume, 
+		#	filter = (Volume == 'RVAT6' & -19 < x & x < 14 & 9 < y & y < 36)), 
+		#	con.type="straight",
+		#	con.linetype = 3,
+		#	con.cap = 0,
+		#	con.border = "none",label.fill = FALSE,
+		#	label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7' & 5 < x & x < 10 & -45 < y & y < -40)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7' & 31 < x & x < 40 & -6 < y & y < 0)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7' & 18 < x & x < 28 & 3.5 < y & y < 12)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7' & 6 < x & x < 18 & -18 < y & y < 1)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7A' & 10 < x & x < 18 & 57 < y & y < 69)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7A' & -7 < x & x < 4 & 39 < y & y < 54)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7A' & 26 < x & x < 29 & -11 < y & y < -9)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT7A' & 6 < x & x < 10 & -31 < y & y < -28)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT8' & 16 < x & x < 22 & -61 < y & y < -58)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT8' & 26 < x & x < 30 & -53 < y & y < -45)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT8' & 27 < x & x < 36 & -33 < y & y < -26)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) + 
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT8' & 37 < x & x < 47 & -57 < y & y < -23)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT8' & -34 < x & x < -21 & 60 < y & y < 68)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT9' & -34 < x & x < -17 & 35 < y & y < 43)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT9' & -30 < x & x < -13 & -13 < y & y < 7)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6) +
+		geom_mark_ellipse(aes(x=x, y=y, 
+				color=Volume, label=Volume, 
+				filter = (Volume == 'RVAT9' & -22 < x & x < 3 & -20 < y & y < -7)), 
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",label.fill = FALSE,
+			label.fontsize = 6)
+h2
+
+
+ggplotly(h2)
+
+
+ggsave("images/RVAT.1to9.seed4000.theta0.png", plot=h2, dpi=500, device="png", width=10, height=10) 
+
+
+
+#########################################################################################################
+######## 																						#########
+######## RTSNE	(RVAT4 - RVAT8)			 														#########
+####### 																						#########
+#########################################################################################################
+
+data.rvat.4.8 <- subset(data.rvat, 
+				data.rvat$"Volume" == "RVAT004"|
+				data.rvat$"Volume" == "RVAT005"|
+				data.rvat$"Volume" == "RVAT006"|
+				data.rvat$"Volume" == "RVAT007"|
+				data.rvat$"Volume" == "RVAT7A"|
+				data.rvat$"Volume" == "RVAT008")
+colnames(data.rvat.4.8)
+unique(data.rvat.4.8$Volume)
+
+#---------- Rtsne on subset
+
+data <- as.data.frame(data.rvat.4.8)
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+
+#------ Save
+saveRDS(data.Rtsne, file="rds/rvat.4.8.Rtsne.seed4000.theta0.RDS", compress=TRUE)		
+
+#----- Convert the result into dataframe and retrieve descriptive metadata	
+
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date")
+data.Rtsne.frame$Volume <- gsub("0", "", data.Rtsne.frame$Volume)
+head(data.Rtsne.frame)
+
+
+#-------- Plot
+
+i <- ggplot(data.Rtsne.frame, aes(x=x, y=y, label=rownames(data.Rtsne.frame))) + 
+				geom_point(aes(col=Volume, shape=Volume))
+				
+i
+ggplotly(i)
+
+i2 <- i +
+		geom_mark_ellipse(aes(x=x, y=y, 
+			color=Volume, label=Volume, 
+			filter = (Volume == 'RVAT4' & (y < -x-90))), 
+			tol=0.001,
+			con.type="straight",
+			con.linetype = 3,
+			con.cap = 0,
+			con.border = "none",
+			label.fill = FALSE,
+			label.fontsize = 6)
+i2		
+
+
+ggsave("images/RVAT.4to8.seed4000.theta0.png", plot=i2, dpi=500, device="png", width=10, height=10) 
+
+#---------------------------------------------------------------------------------------------------------
+#--------- Rtsne on subset with annotation of hands and scribes on each images
+
+data.scribe <- read.csv("data/DHIP_rvat0408_features_metadata_scribe.csv", row.names= 1, sep=",", header=TRUE)
+colnames(data.scribe)
+unique(data.scribe$Volume)
+unique(data.scribe$Main)
+
+
+data <- as.data.frame(data.scribe)
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+
+#------ Save
+saveRDS(data.Rtsne, file="rds/rvat.4.8.Rtsne.scribe.seed4000.theta0.RDS", compress=TRUE)		
+
+#----- Convert the result into dataframe and retrieve descriptive metadata	
+
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date, data$Main)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date", "Scribe")
+data.Rtsne.frame$Volume <- gsub("0", "", data.Rtsne.frame$Volume)
+head(data.Rtsne.frame)
+
+
+#-------- Plot on same space 
+
+j <- ggplot(data.Rtsne.frame, aes(x=x, y=y, label=rownames(data.Rtsne.frame))) + 
+				geom_point(aes(col=Scribe))
+j
+				
+j2 <- ggplot(subset(data.Rtsne.frame, 
+				(Scribe == "A" | Scribe == "B1" | Scribe == "B2" | Scribe == "B3" | Scribe == "B4" | 
+				Scribe == "C" | Scribe == "D" | Scribe == "E" | Scribe == "F" | Scribe == "G" | 
+				Scribe == "H" | Scribe == "I" | Scribe == "K" | Scribe == "L" | Scribe == "M" |
+				Scribe == "4_Table" | Scribe == "5_Table" | Scribe == "7_Table" | Scribe == "7A_Table")), 
+			aes(x=x, y=y, 
+					shape=Scribe, 
+					col=Scribe, 
+					label=rownames(subset(data.Rtsne.frame, 
+							(Scribe == "A" | Scribe == "B1" | Scribe == "B2" | Scribe == "B3" | Scribe == "B4" | 
+							Scribe == "C" | Scribe == "D" | Scribe == "E" | Scribe == "F" | Scribe == "G" | 
+							Scribe == "H" | Scribe == "I" | Scribe == "K" | Scribe == "L" | Scribe == "M" |
+							Scribe == "4_Table" | Scribe == "5_Table" | Scribe == "7_Table" | Scribe == "7A_Table"))))
+							) + 
+		geom_point() +
+		scale_shape_manual(values=c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19))
+j2
+
+j3 <- ggplotly(j2)
+j3
+
+
+ggsave("images/RVAT.4to8.scribe.seed4000.theta0.png", plot=j2, dpi=500, device="png", width=10, height=10) 
+
+#---------------------------------------------------------
+#-------- Plot with Rtsne only on images with Scribes
+
+
+data.scribe2 <- subset(data.scribe, 
+							(Main == "A" | Main == "B1" | Main == "B2" | Main == "B3" | Main == "B4" | 
+							Main == "C" | Main == "D" | Main == "E" | Main == "F" | Main == "G" | 
+							Main == "H" | Main == "I" | Main == "K" | Main == "L" | Main == "M"))
+
+data <- as.data.frame(data.scribe2)
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+saveRDS(data.Rtsne, file="rds/rvat.4.8.Rtsne.subset.scribe.seed4000.theta0.RDS", compress=TRUE)		
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date, data$Main)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date", "Scribe")
+data.Rtsne.frame$Volume <- gsub("0", "", data.Rtsne.frame$Volume)
+head(data.Rtsne.frame)
+k <- ggplot(data.Rtsne.frame, aes(x=x, y=y, label=rownames(data.Rtsne.frame))) + 
+				geom_point(aes(col=Scribe))
+k
+
+ggplotly(k)
+
+
+ggsave("images/RVAT.4to8.scribe.subset.seed4000.theta0.png", plot=j2, dpi=500, device="png", width=10, height=10) 
+
+
+
+#########################################################################################################
+######## 																						#########
+######## RVAT complete corpus			 														#########
+####### 																						#########
+#########################################################################################################
+
+#-------- Corpus (if not already loaded or after change of variable names)
+# rm(list = ls())
+# setwd("C:/Users/stutzmann/Documents/GitHub/RegVat_ArchNatJJ") 			#Set the working directory
+# DATA 		<- read.csv("data/DHIP_all_merged_features_metadata.tsv", sep="\t", header=TRUE)
+# data.rvat <- subset(DATA, DATA$"Corpus" == "RVAT")
+
+
+#---------------------------------------------------------------------------------------------------------
+#--------- RTSNE
+
+
+data <- as.data.frame(data.rvat)
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+
+#------ Save
+saveRDS(data.Rtsne, file="rds/rvat.complete.Rtsne.seed4000.theta0.RDS", compress=TRUE)		
+
+#----- Convert the result into dataframe and retrieve descriptive metadata	
+
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date")
+head(data.Rtsne.frame)
+
+
+#-------- Plot
+
+k <- ggplot(subset(data.Rtsne.frame, Date > 800), aes(x=x, y=y, label=rownames(subset(data.Rtsne.frame, Date > 800)), col=Date)) + 
+				geom_point()
+				
+k
+k2 <- k + scale_color_gradientn(
+				limits = c(800,1500), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+k2
+ggplotly(k2)
+ggsave("images/RVAT.all.byDate.png", plot=k2, dpi=500, device="png", width=10, height=10) 
+
+#saveWidget(ggplotly(k), "RVAT.all.Rtsne.byDate.seed4000.theta00.pca_scaleYes.html", selfcontained = FALSE)
+
+
+
+
+#---------------------------------------------------------------------------------------------------------
+#--------- PCA 
+#---------
+
+set.seed(4000)
+data.rvat.pca <- PCA(data.rvat, scale.unit = TRUE, ncp = 5, quali.sup = c(3073:3076), graph = FALSE, axes = c(1,2))
+
+		# PCA visualization... and many outliers appear
+plot.pca <- fviz_pca_ind(data.rvat.pca, axes = c(1,2), 
+		#label="none"
+		labelsize=2
+		#repel = TRUE
+		) 
+		# +
+		# xlim(-75,100) + ylim(-50,30)
+plot.pca
+
+saveRDS(data.rvat.pca, file="rds/rvat.complete.pca.RDS", compress=TRUE)		
+# data.rvat.pca <- readRDS(file="rds/rvat.complete.pca.RDS")		
+
+#--------- Identifying outliers
+indiv <- as.data.frame(data.rvat.pca$ind$coord)
+dim(indiv)															# 7559 rows, 5 cols (PCA dimensions)
+outliers1 <- subset(indiv, (indiv[,1] < -75 | indiv[,1] > 100))
+outliers2 <- subset(indiv, (indiv[,2] < -50 | indiv[,2] > 30))
+outliers <- as.data.frame(rbind(outliers1, outliers2))
+dim(outliers)								 						# Check data points to remove : 90 rows, but only 67 unique rownames 
+																	# because of duplicates between the selections of "outliers1" and "outliers2"
+head(outliers)
+
+#------- ploting outliers
+
+m <- ggplot(indiv, aes(x=Dim.1, y=Dim.2, label=rownames(indiv))) + 
+			geom_point(size=1) +
+			geom_text(data = . %>% filter(Dim.2 > -Dim.2 +100), 
+					aes(x=Dim.1, y=Dim.2, label=rownames(indiv %>% filter(Dim.2 > -Dim.2 +100))), 
+					check_overlap = TRUE,
+					size=4)
+m
+ggsave(file="images/rvat.complete.pca.png", m, dpi=500, device="png", width=10, height=10)
+
+#------- removing outliers
+
+
+remove <- rownames(outliers)
+data.rvat.cleaned <- data.rvat[ !(rownames(data.rvat) %in% remove), ]
+dim(data.rvat.cleaned) 												# 7492  rows, 3076 cols. (features and metadata)
+																	# for an unknown reason, 90 rownames + 7492 remaining rows 
+																	# differs from the original 7559 rows
+saveRDS(data.rvat.cleaned, file="rds/rvat.complete.cleaned.RDS", compress=TRUE)		
+# data.rvat.cleaned <- readRDS(file="rds/rvat.complete.cleaned.RDS")
+
+
+#-------- new PCA
+data.rvat.cleaned.pca <- PCA(data.rvat.cleaned, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+
+saveRDS(data.rvat.cleaned.pca, file="rds/rvat.complete.cleaned.pca.RDS", compress=TRUE)		
+# data.rvat.cleaned.pca <- readRDS(file="rds/rvat.complete.cleaned.pca.RDS")
+
+#---------- Plot
+
+l1 <- 
+		fviz_pca_ind(data.rvat.cleaned.pca, 
+				axes = c(1, 2), col.ind=data.rvat.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.5) + 
+				#labs(title ="ACP sur les images de Reg. Vat. par date") + 
+				scale_color_gradientn(
+					limits = c(800,1500), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+
+l2 <- 
+		fviz_pca_ind(data.rvat.cleaned.pca, 
+				axes = c(2, 3), col.ind=data.rvat.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.5) + 
+				#labs(title ="ACP sur les images de Reg. Vat. par date") + 
+				scale_color_gradientn(
+					limits = c(800,1500), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+l3 <- 
+		fviz_pca_ind(data.rvat.cleaned.pca, 
+				axes = c(1, 3), col.ind=data.rvat.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.5) + 
+				#labs(title ="ACP sur les images de Reg. Vat. par date") + 
+				scale_color_gradientn(
+					limits = c(800,1500), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+l4 <- 
+		fviz_pca_ind(data.rvat.cleaned.pca, 
+				axes = c(1, 4), col.ind=data.rvat.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.5) + 
+				#labs(title ="ACP sur les images de Reg. Vat. par date") + 
+				scale_color_gradientn(
+					limits = c(800,1500), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+
+l <- arrangeGrob(l1, l2, l3, l4, ncol=2,
+		top="ACP sur les images de Reg. Vat. par date d'actes")
+ggsave(file="images/rvat.complete.cleaned.pca.png", l, dpi=500, device="png", width=10, height=10)
+ 
+
+
+
+
+#########################################################################################################
+######## 																						#########
+######## Paris, Archives Nationales, series JJ													#########
+######## 																						#########
+#########################################################################################################
+
+#-------- Corpus (if not already loaded or after change of variable names)
+# rm(list = ls())
+# setwd("C:/Users/stutzmann/Documents/GitHub/RegVat_ArchNatJJ") 			#Set the working directory
+# DATA 		<- read.csv("data/DHIP_all_merged_features_metadata.tsv", sep="\t", header=TRUE)
+# DATA		<- readRDS("rds/ALL_merged_features_metadata.RDS")								#equivalent but faster
+
+data.jj <- subset(DATA, DATA$"Corpus" == "AN")
+
+
+#--------------------------------------------------------------------------------------------------------
+#-----------------------------------	General statistics 	-------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+
+jj.initial_corpus <- read_excel("initial_corpus/HIMANIS_metadata.xlsx", sheet = "Images-Shelfmark-folio")
+
+#simplify shelfmark
+jj.initial_corpus$Register <- gsub("JJ00", "", jj.initial_corpus$Register)
+jj.initial_corpus$Register <- gsub("JJ0", "", jj.initial_corpus$Register)
+jj.initial_corpus$Register <- gsub("JJ", "", jj.initial_corpus$Register)
+jj.initial_corpus$Register <- gsub("A", ".1", jj.initial_corpus$Register)
+jj.initial_corpus$Register <- gsub("B", ".2", jj.initial_corpus$Register)
+jj.initial_corpus$Register <- as.numeric(jj.initial_corpus$Register)
+
+
+b1 <- ggplot(jj.initial_corpus, aes(x=Register)) + 
+			geom_histogram(color="black", fill="white", binwidth=1) +
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			ylab("Nombre d'images") + 
+			xlab("Numéro de registre JJ")
+b2 <- ggplot(jj.initial_corpus, aes(x=Date)) + 
+			geom_histogram(color="black", fill="white", binwidth = 1) +
+			#stat_bin(aes(y=..Numero.., label=..Numero..), geom="text", vjust=-.5) 
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			xlim(1200, 1500) +
+			#scale_x_continuous(breaks=seq(800,1520,10)) +
+			ylab("Nombre d'images") + 
+			xlab("Date médiane du registre de la page numérisée")
+
+b3 <- arrangeGrob(b1, b2, ncol=1,
+		top="Corpus initial Arch. nat. JJ")
+ggsave(file="images/an_jj.initial_corpus.png", b3, dpi=200, device="png", width=10, height=10)
+ 
+
+
+
+
+#simplify shelfmark
+jj.eff_corpus <- data.jj
+jj.eff_corpus$Volume <- gsub("JJ00", "", jj.eff_corpus$Volume)
+jj.eff_corpus$Volume <- gsub("JJ0", "", jj.eff_corpus$Volume)
+jj.eff_corpus$Volume <- gsub("JJ", "", jj.eff_corpus$Volume)
+jj.eff_corpus$Volume <- gsub("A", ".1", jj.eff_corpus$Volume)
+jj.eff_corpus$Volume <- gsub("B", ".2", jj.eff_corpus$Volume)
+jj.eff_corpus$Volume <- as.numeric(jj.eff_corpus$Volume)
+jj.eff_corpus <- jj.eff_corpus[complete.cases(jj.eff_corpus[,1:3075]),]				#reduce 26214 images to 26167 images
+
+b4 <- ggplot(jj.eff_corpus, aes(x=Volume)) + 
+			geom_histogram(color="black", fill="white", binwidth=1) +
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			ylab("Nombre d'images") + 
+			xlab("Numéro de registre JJ")
+b5 <- ggplot(jj.eff_corpus, aes(x=Date)) + 
+			geom_histogram(color="black", fill="white", binwidth = 1) +
+			#stat_bin(aes(y=..Numero.., label=..Numero..), geom="text", vjust=-.5) 
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			xlim(1200, 1500) +
+			#scale_x_continuous(breaks=seq(800,1520,10)) +
+			ylab("Nombre d'images") + 
+			xlab("Date médiane du registre de la page numérisée")
+
+b6 <- arrangeGrob(b4, b5, ncol=1,
+		top="Corpus effectif Arch. nat. JJ")
+ggsave(file="images/an_jj.eff_corpus.png", b6, dpi=200, device="png", width=10, height=10)
+   
+
+
+#---------------------------------------------------------------------------------------------------------
+#--------- RTSNE
+#---------------------------------------------------------------------------------------------------------
+
+data <- as.data.frame(data.jj)
+
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+
+#------ Save
+saveRDS(data.Rtsne, file="rds/an_jj.complete.Rtsne.seed4000.theta0.RDS", compress=TRUE)		
+# data.Rtsne <- readRDS(file="rds/an_jj.complete.Rtsne.seed4000.theta0.RDS")
+
+
+#----- Convert the result into dataframe and retrieve descriptive metadata	
+
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date")
+head(data.Rtsne.frame)
+
+
+#-------- Plot
+
+m <- ggplot(data.Rtsne.frame, 
+					aes(x=x, y=y, label=Volume, col=Date, text=rownames(data.Rtsne.frame))) + 
+			geom_point(alpha=04) +
+			scale_color_gradientn(
+					limits = c(1300,1500), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+m
+
+ggplotly(m)
+
+m2 <- m + 
+		annotate("text", x=-18.5, y=7.5, label="JJ195", color="darkgreen", size=5) +
+		annotate("text", x=-20.5, y=11.5, label="JJ206", color="darkgreen", size=5) +
+		annotate("text", x=-28, y=19, label="JJ211", color="darkgreen", size=5) +
+		annotate("text", x=-33, y=16, label="JJ8", color="darkred", size=5) +
+		annotate("text", x=-50, y=5, label="JJ23\nJJ35\nJJ36", color="darkred", size=5)
+		
+		#--- if one prefers ellipse annotations
+		# stat_ellipse(data = . %>% filter(Volume == "JJ195"
+		#			& -19 < x & x < -18 & 9 < y & y < 10
+		#			), 
+		#		inherit.aes=FALSE, aes(x=x,y=y), 
+		#		linetype = 2, level=0.8)
+		#
+		# geom_mark_ellipse(aes(x=x, y=y, label="JJ195",
+		#	filter = (Volume == "JJ195"
+		#	& -19 < x & x < -18 & 9 < y & y < 10
+		#			)),
+		#	con.type="straight",
+		#	con.linetype = 3,
+		#	con.cap = 0,
+		#	con.border = "none",
+		#	label.fill = FALSE,
+		#	label.fontsize = 6) +
+		
+ggsave("images/an_jj.all.byDate.png", plot=m2, dpi=500, device="png", width=10, height=10) 
+saveWidget(ggplotly(m), "plotly/an_jj.all.Rtsne.byDate.seed4000.theta00.pca_scaleYes.html", selfcontained = FALSE)
+
+
+
+
+#---------------------------------------------------------------------------------------------------------
+#--------- PCA 						----------------------------------------------------------------------
+#---------------------------------------------------------------------------------------------------------
+
+set.seed(4000)
+data.an_jj.pca <- PCA(data.jj, scale.unit = TRUE, ncp = 5, quali.sup = c(3073:3076), graph = FALSE, axes = c(1,2))
+saveRDS(data.an_jj.pca, file="rds/an_jj.complete.pca.RDS", compress=TRUE)		
+# data.an_jj.pca <- readRDS(file="rds/an_jj.complete.pca.RDS")		
+
+		# PCA visualization... and many outliers appear
+plot.pca <- fviz_pca_ind(data.an_jj.pca, axes = c(1,2), 
+		label="none",
+		labelsize=2
+		) 
+		# +
+		# xlim(-100,200) + ylim(-60,100)
+plot.pca
+
+
+#--------- Identifying outliers
+indiv <- as.data.frame(data.an_jj.pca$ind$coord)
+dim(indiv)															# 7559 rows, 5 cols (PCA dimensions)
+outliers1 <- subset(indiv, (indiv[,2] < (indiv[,1] / 2) -50))
+outliers2 <- subset(indiv, (indiv[,2] > 100 - indiv[,1]))
+outliers <- as.data.frame(rbind(outliers1, outliers2))
+dim(outliers)								 						# Check data points to remove  
+unique(rownames(outliers))											# because of duplicates between the selections of "outliers1" and "outliers2"
+head(outliers)
+
+#------- ploting outliers
+
+m <- ggplot(indiv, aes(x=Dim.1, y=Dim.2, label=rownames(indiv))) + 
+			geom_point(size=1) +
+			stat_density_2d(aes(fill = ..level..), geom = "polygon") +
+			scale_fill_continuous(type = "viridis") +
+			# geom_text(data = . %>% filter((indiv[,2] < (indiv[,1] / 2) -50)|(indiv[,2] > 100 - indiv[,1])), 
+			#	aes(x=Dim.1, y=Dim.2, 
+			#			color="grey",
+			#				label=rownames(indiv %>% filter((indiv[,2] < (indiv[,1] / 2) -50)|(indiv[,2] > 100 - indiv[,1]))
+			#					)), 
+			#		check_overlap = TRUE,
+			#		size=2) +
+			geom_point(data = . %>% filter((indiv[,2] < (indiv[,1] / 2) -50)|(indiv[,2] > 100 - indiv[,1])), 
+					aes(x=Dim.1, y=Dim.2, 
+							color="grey",
+							label=rownames(indiv %>% filter((indiv[,2] < (indiv[,1] / 2) -50)|(indiv[,2] > 100 - indiv[,1]))
+								)), 
+					size=0.1) +
+			theme(legend.position = "none")
+m
+
+ggsave(file="images/an_jj.complete.pca.with_outliers.png", m, dpi=500, device="png", width=10, height=5)
+
+#------- removing outliers
+
+
+remove <- rownames(outliers)
+data.jj.cleaned <- data.jj[ !(rownames(data.jj) %in% remove), ]
+dim(data.jj.cleaned) 												# 24998  rows, 3076 cols. (features and metadata)
+																	# 1528 rownames + 24998 remaining rows 
+																	# differs from the original 26214rows, because some outliers are captured by both outliers1 and outliers2
+saveRDS(data.jj.cleaned, file="rds/an_jj.cleaned.RDS", compress=TRUE)
+# data.jj.cleaned <- readRDS(file="rds/an_jj.cleaned.RDS")
+
+
+#------- new PCA
+set.seed(4000)
+data.jj.cleaned.pca <- PCA(data.jj.cleaned, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+
+saveRDS(data.jj.cleaned.pca, file="rds/an_jj.complete.cleaned.pca.RDS", compress=TRUE)		
+# data.jj.cleaned.pca <- readRDS(file="rds/an_jj.complete.cleaned.pca.RDS")
+
+
+
+#---------- Plot
+
+n1 <- 
+		fviz_pca_ind(data.jj.cleaned.pca, 
+				axes = c(1, 2), col.ind=data.jj.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+
+n2 <- 
+		fviz_pca_ind(data.jj.cleaned.pca, 
+				axes = c(2, 3), col.ind=data.jj.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+n3 <- 
+		fviz_pca_ind(data.jj.cleaned.pca, 
+				axes = c(1, 3), col.ind=data.jj.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+n4 <- 
+		fviz_pca_ind(data.jj.cleaned.pca, 
+				axes = c(1, 4), col.ind=data.jj.cleaned$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+
+n <- arrangeGrob(n1, n2, n3, n4, ncol=2,
+		top="ACP sur les images des registres de la série JJ des Archives Nationales (Paris)")
+ggsave(file="images/an_jj.complete.cleaned.pca.png", n, dpi=500, device="png", width=10, height=10)
+ggsave(file="images/an_jj.complete.cleaned.pca.1-4.png", n4, dpi=500, device="png", width=10, height=10)
+
+
+
+
+#########################################################################################################
+######## 																						#########
+######## 				RVAT and Arch. Nat. JJ													#########
+######## 																						#########
+#########################################################################################################
+
+
+#-------- Corpus (if not already loaded or after change of variable names)
+# rm(list = ls())
+# setwd("C:/Users/stutzmann/Documents/GitHub/RegVat_ArchNatJJ") 			#Set the working directory
+# DATA 		<- read.csv("data/DHIP_all_merged_features_metadata.tsv", sep="\t", header=TRUE)
+# DATA		<- readRDS("rds/ALL_merged_features_metadata.RDS")								#equivalent but faster
+
+
+#----------------------------------------------------------------------------------------------------------------------------------
+#----------------- SKIP THIS SECTION IF UNNECESSARY (allows to reproduce the different sub-corpus, rvat, jj, complete/cleaned	---
+#----------------------------------------------------------------------------------------------------------------------------------
+data.rvat <- subset(DATA, DATA$"Corpus" == "RVAT")
+data.jj <- subset(DATA, DATA$"Corpus" == "AN")
+data.rvat.cleaned <- readRDS(file="rds/rvat.complete.cleaned.RDS")
+data.jj.cleaned <- readRDS(file="rds/an_jj.cleaned.RDS")
+
+#----------------------------------------------------------------------------------------------------------------------------------
+#----------------- end of section to be skipped	-----------------------------------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------------------------
+
+
+data.rvatjj <- rbind(data.rvat.cleaned, data.jj.cleaned)
+
+
+set.seed(4000)
+data.rvatjjcleaned.pca <- PCA(data.rvatjj, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+saveRDS(data.rvatjjcleaned.pca, file="rds/rvatjjcleaned.pca.RDS", compress=TRUE)		
+# data.rvatjjcleaned.pca <- readRDS(file="rds/rvatjjcleaned.pca.RDS")
+
+#----- Plot 
+
+
+o1 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 2), col.ind=data.rvatjj$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+
+o2 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(2, 3), col.ind=data.rvatjj$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+o3 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 3), col.ind=data.rvatjj$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+o4 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 4), col.ind=data.rvatjj$Date, 
+				geom.ind="point", alpha.ind=0.8) + 
+				scale_color_gradientn(
+					limits = c(1300,1483), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise"))
+
+o <- arrangeGrob(o1, o2, o3, o4, ncol=2,
+		top="ACP sur les images des registres Reg. Vat. et ceux de la série JJ des Archives Nationales (Paris)")
+
+ggsave(file="images/rvatjj.cleaned.pca.byDate.png", o, dpi=500, device="png", width=10, height=10)
+
+
+
+
+p1 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 2), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+
+p2 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(2, 3), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p3 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 3), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p4 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 4), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p5 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(2, 4), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p6 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(3, 4), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p6 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 5), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p7 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(2, 5), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+p8 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(3, 5), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.05)
+
+p <- arrangeGrob(p1, p2, p3, p4, p5, p6, p7, p8, ncol=2,
+		top="ACP sur les images des registres Reg. Vat. et ceux de la série JJ des Archives Nationales (Paris) ")
+
+ggsave(file="images/rvatjj.cleaned.pca.byCorpus.png", p, dpi=500, device="png", width=10, height=10)
+
+
+
+p1.alpha02 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 2), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.2)
+p2.alpha02 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(2, 3), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.2)
+p3.alpha02 <- 
+		fviz_pca_ind(data.rvatjjcleaned.pca, 
+				axes = c(1, 3), col.ind=data.rvatjj$Corpus, 
+				geom.ind="point", alpha.ind=0.2)
+ggsave(file="images/rvatjj.cleaned.pca.byCorpus1-2.png", p1, dpi=500, device="png", width=10, height=10)
+ggsave(file="images/rvatjj.cleaned.pca.byCorpus1-2.alpha02.png", p1.alpha02, dpi=500, device="png", width=10, height=10)
+
+
+#------------ Highlighting oldest parts of corpus
+
+#q1a <- p1.alpha02 + geom_point(data = . %>% filter(data.rvatjj$Corpus == "RVAT" & data.rvatjj$Date > 1180 
+										& data.rvatjj$Date < 1220), color="darkgreen", 
+										alpha=0.1)
+q1 <- p1.alpha02 + geom_point(data = . %>% filter(data.rvatjj$Corpus == "AN" & data.rvatjj$Date < 1340), color="purple", alpha=0.2)
+q1
+
+q2 <- p2.alpha02 + geom_point(data = . %>% filter(data.rvatjj$Corpus == "AN" & data.rvatjj$Date < 1340), color="purple", alpha=0.2)
+q2
+
+q3 <- p3.alpha02 + geom_point(data = . %>% filter(data.rvatjj$Corpus == "AN" & data.rvatjj$Date < 1340), color="purple", alpha=0.2)
+q3
+
+ggsave(file="images/rvatjj.cleaned.pca.byCorpus.pre-1340.png", q1, dpi=500, device="png", width=10, height=10)
+
+
+
+q <- arrangeGrob(q1, q3, ncol=2,
+		top="ACP sur les images des registres Reg. Vat. et ceux de la série JJ des Archives Nationales (Paris)")
+
+ggsave(file="images/rvatjj.cleaned.pca.byCorpus.png-axes1-2.1-3.png", q, dpi=500, device="png", width=20, height=10)
+
+
+
+#########################################################################################################
+######## 																						#########
+######## Analysis on single leaf charters: Lichtbildarchiv (LBA) and Monasterium (MOMCA)		#########
+######## 																						#########
+#########################################################################################################
+
+# library(FactoMineR)
+# library(factoextra)
+
+
+#--------------------------------------------------------------------------------------------------------
+#-------- Corpus (if not already loaded or after change of variable names)
+#--------------------------------------------------------------------------------------------------------
+# rm(list = ls())
+# setwd("C:/Users/stutzmann/Documents/GitHub/RegVat_ArchNatJJ") 			#Set the working directory
+# DATA 		<- read.csv("data/DHIP_all_merged_features_metadata.tsv", sep="\t", header=TRUE)
+# DATA		<- readRDS("rds/ALL_merged_features_metadata.RDS")								#equivalent but faster
+
+data.acts <- subset(DATA, (DATA$Corpus == "MOMCA" | DATA$Corpus == "LBA"))
+data.momca <- subset(DATA, (DATA$Corpus == "MOMCA"))										#dim(momca): 11888 rows, 3076 cols
+data.lba <- subset(DATA, (DATA$Corpus == "LBA"))											#dim(lba): 9382 rows, 3076 cols
+
+
+#--------------------------------------------------------------------------------------------------------
+#------------------- General Statistics 
+#--------------------------------------------------------------------------------------------------------
+
+data.lba.stats <- data.lba
+data.lba.stats[is.na(data.lba.stats)] <- 0
+
+z1 <- ggplot(data.lba.stats, aes(x=Date, fill=Type1)) + 
+			geom_histogram(binwidth = 1) +
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			scale_x_continuous(breaks=seq(1100,1500,50)) +
+			xlim(1100,1500) +
+			ylab("Nombre d'images") + 
+			xlab("Date") +
+			guides(fill=guide_legend(title="Auteur de l'acte"))
+z1
+ggsave(plot=z1, file="images/acts.lba.stats.png", dpi=200, device="png", width=10, height=5)
+
+
+z2 <- ggplot(data.momca, aes(x=Date, fill=Type1)) + 
+			geom_histogram(binwidth = 1) +
+			theme(axis.text.x = element_text(size=6, angle=45)) +
+			scale_x_continuous(breaks=seq(1100,1500,50)) +
+			xlim(1100,1500) +
+			ylab("Nombre d'images") + 
+			xlab("Date") +
+			guides(fill=guide_legend(title="Auteur de l'acte"))
+z2
+ggsave(plot=z2, file="images/acts.momca.stats.png", dpi=200, device="png", width=10, height=5)
+
+
+
+#--------------------------------------------------------------------------------------------------------
+#------------------- PCA (global)
+#--------------------------------------------------------------------------------------------------------
+set.seed(4000)
+data.acts.pca <- PCA(data.acts, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+saveRDS(data.acts.pca, file="rds/acts.MOMCA.LBA.pca.RDS", compress=TRUE)		
+# data.acts.pca <- readRDS(file="rds/acts.MOMCA.LBA.pca.RDS")
+
+set.seed(4000)
+data.momca.pca <- PCA(data.momca, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+saveRDS(data.momca.pca, file="rds/acts.MOMCA.pca.RDS", compress=TRUE)		
+# data.momca.pca <- readRDS(file="rds/acts.MOMCA.pca.RDS")
+
+set.seed(4000)
+data.lba.pca <- PCA(data.lba, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+saveRDS(data.lba.pca, file="rds/acts.LBA.pca.RDS", compress=TRUE)		
+# data.lba.pca <- readRDS(file="rds/acts.LBA.pca.RDS")
+
+
+#--- plot
+
+r.acts <- fviz_pca_ind(data.acts.pca, axes = c(1,2), 
+		label="none",
+		labelsize=2
+		)  +
+		xlim(-100,200) + ylim(-150,150)
+r.acts
+
+
+r.lba <- fviz_pca_ind(data.lba.pca, axes = c(1,2), 
+		label="none",
+		labelsize=2
+		)  +
+		xlim(-100,200) + ylim(-150,150)
+r.lba
+
+r.momca1 <- fviz_pca_ind(data.momca.pca, axes = c(1,2), 
+		label="none",
+		labelsize=2
+		)  +
+		xlim(-100,200) + ylim(-150,150)
+r.momca1
+
+r.momca2 <- fviz_pca_ind(data.momca.pca, axes = c(1,3), 
+		label="none",
+		labelsize=2
+		)  +
+		xlim(-100,200) + ylim(-150,150)
+r.momca2
+
+r.momca3 <- fviz_pca_ind(data.momca.pca, axes = c(2,3), 
+		label="none",
+		labelsize=2
+		)  +
+		xlim(-100,200) + ylim(-150,150)
+r.momca3
+
+r.momca4 <- fviz_pca_ind(data.momca.pca, axes = c(1,4), 
+		label="none",
+		labelsize=2
+		)  +
+		xlim(-100,200) + ylim(-150,150)
+r.momca4
+
+r.momca1.zoom <- r.momca1 + xlim(-50,0) + ylim(-50, 0)
+
+r.momca <- arrangeGrob(r.momca1, r.momca2, r.momca3, r.momca4, ncol=2,
+		top="ACP sur les images de Monasterium.net (MOMCA)")
+ggsave(file="images/momca.pca.png", r.momca, dpi=500, device="png", width=10, height=10)
+
+
+r.momca1.zoom <- r.momca1 + xlim(-50,0) + ylim(-50, 0)
+
+
+r.momca1.fullzoom <- arrangeGrob(r.momca1, r.momca1.zoom, ncol=2,
+		top="ACP sur les images de Monasterium.net (MOMCA) - axes 1 et 2 (vue globale et zoom)")
+ggsave(r.momca1.fullzoom, file="images/momca.pca.axes1-2.png", dpi=500, device="png", width=20, height=10)
+
+#----------------------------------------------------------------------------------
+#----------- Exploring MOMCA groups 1 and 2 with Rtsne
+#-----------------------------------------------------------------------------------
+
+#----------- 1. Adding groups to metadata
+
+momca.gp1 <- subset(indiv.momca, indiv.momca$Dim.2 > -6)
+momca.gp1.list <- rownames(momca.gp1)
+
+data.momca.gp1 <- data.momca[ (rownames(data.momca) %in% momca.gp1.list), ]
+data.momca.gp2 <- data.momca[ !(rownames(data.momca) %in% momca.gp1.list), ]
+
+dim(data.momca.gp1)								#7809 rows, 3076 features
+dim(data.momca.gp2)								#4079 rows, 3076 features
+
+saveRDS(data.momca.gp1, file="rds/acts.momca.gp1.RDS", compress=TRUE)
+# data.momca.gp1 <- readRDS(file="rds/acts.momca.gp1.RDS")
+
+
+
+data.momca.gp1$"Group" <- "Group1"
+data.momca.gp2$"Group" <- "Group2"
+data.momca.gp <- rbind(data.momca.gp1, data.momca.gp2)
+dim(data.momca.gp)
+
+
+#----------- RTSNE
+data <- data.momca.gp
+
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				theta=0.0, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+
+#Rtsne  fails and we discover that the difference between groups 1 and 2 are the "NA" in col. 3072 ("D3071"). 
+#Origin of this phenomenon is unknown and will not be explored further.
+
+
+#--------------------------------------------------------------------------------
+#------------ Removing outliers
+
+
+#--------- Identifying outliers LBA
+indiv <- as.data.frame(data.lba.pca$ind$coord)
+dim(indiv)															# 9382 rows, 5 cols (PCA dimensions)
+outliers <- as.data.frame(subset(indiv, (indiv[,2] < (indiv[,1]-15) & indiv[,1] > 20)))
+dim(outliers)								 						# Check data points to remove : 1021 rows to remove
+head(outliers)
+
+remove <- rownames(outliers)
+data.lba.cleaned <- data.lba[ !(rownames(data.lba) %in% remove), ]
+dim(data.lba.cleaned) 		
+
+saveRDS(data.lba.cleaned, file="rds/acts.lba.cleaned.RDS", compress=TRUE)
+# data.lba.cleaned <- readRDS(file="rds/acts.lba.cleaned.RDS")
+
+
+#--------- Identifying outliers MOMCA (group 1)
+
+set.seed(4000)
+data.momca.gp1.pca <- PCA(data.momca.gp1, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3077), 
+				graph = FALSE, axes = c(1,2))
+saveRDS(data.momca.gp1.pca, file="rds/acts.MOMCA.gp1.pca.RDS", compress=TRUE)		
+# data.momca.gp1.pca <- readRDS(file="rds/acts.MOMCA.gp1.pca.RDS")
+fviz_pca_ind(data.momca.gp1.pca, axes = c(1,2), label="none")
+
+indiv <- as.data.frame(data.momca.gp1.pca$ind$coord)
+dim(indiv)															# 7809 rows, 5 cols (PCA dimensions)
+outliers <- as.data.frame(subset(indiv, (indiv[,2] > 50 & indiv[,1] > 100)))
+dim(outliers)								 						# Check data points to remove : 24 rows to remove
+head(outliers)
+
+remove <- rownames(outliers)
+data.momca.cleaned <- data.momca.gp1[ !(rownames(data.momca.gp1) %in% remove), ]
+dim(data.momca.cleaned) 											#7785 rows, 3077 cols
+
+data.momca.cleaned <- data.momca.cleaned[,1:3076]					#remove the "Group" column
+saveRDS(data.momca.cleaned, file="rds/acts.momca.cleaned.RDS", compress=TRUE)		
+#data.momca.cleaned <- readRDS(file="rds/acts.momca.cleaned.RDS")
+
+#########################################################################################################
+######## 																						#########
+######## Analysis on all cleaned DATA															#########
+######## 																						#########
+#########################################################################################################
+
+#--------------------------------------------------------------------------------------------------------
+#-------- Corpus (if not already loaded or after change of variable names)
+#--------------------------------------------------------------------------------------------------------
+rm(list = ls())
+setwd("C:/Users/stutzmann/Documents/GitHub/RegVat_ArchNatJJ") 			#Set the working directory
+data.rvat.cleaned <- readRDS(file="rds/rvat.complete.cleaned.RDS")
+data.jj.cleaned <- readRDS(file="rds/an_jj.cleaned.RDS")
+data.lba.cleaned <- readRDS(file="rds/acts.lba.cleaned.RDS")
+data.momca.cleaned <- readRDS(file="rds/acts.momca.cleaned.RDS")
+
+
+rbind(dim(data.rvat.cleaned), dim(data.jj.cleaned), dim(data.momca.cleaned))
+
+#----------- end of section to be skipped
+
+#----------  General statistics
+
+data.rvat.cleaned <- readRDS(file="rds/rvat.complete.cleaned.RDS")
+data.jj.cleaned <- readRDS(file="rds/an_jj.cleaned.RDS")
+data.lba.cleaned <- readRDS(file="rds/acts.lba.cleaned.RDS")
+data.momca.cleaned <- readRDS(file="rds/acts.momca.cleaned.RDS")
+
+stats1 <- c(length(rownames(data.rvat.cleaned)), 
+			length(rownames(data.jj.cleaned)), 	
+			length(rownames(data.lba.cleaned)), 
+			length(rownames(data.momca.cleaned))
+			)
+stats2 <- c(length(rownames(data.rvat.cleaned %>% filter(Type1 == "Pape"))), 
+			length(rownames(data.jj.cleaned  %>% filter(Type1 == "Pape"))), 	
+			length(rownames(data.lba.cleaned  %>% filter(Type1 == "Pape"))), 
+			length(rownames(data.momca.cleaned %>% filter(Type1 == "Pape")))
+			)
+stats <- cbind(stats1, stats2)
+
+#----------------DATA cleaned --------------------------
+
+DATA.cleaned <- rbind(data.rvat.cleaned, data.jj.cleaned, data.lba.cleaned, data.momca.cleaned)
+saveRDS(DATA.cleaned,  file="rds/ALL.cleaned.RDS", compress=TRUE)
+# DATA.cleaned <- readRDS(file="rds/ALL.cleaned.RDS")
+dim(DATA.cleaned)															#48836 rows, 3076 cols
+
+
+
+#--------------------------------------------------------------------------------------------------------
+#-------- PCA -------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+
+
+
+
+set.seed(4000)
+DATA.cleaned.pca <- PCA(DATA.cleaned, 
+				scale.unit = TRUE, ncp = 5, 
+				quali.sup = c(3073:3076), 
+				graph = FALSE, axes = c(1,2))
+saveRDS(DATA.cleaned.pca, file="rds/ALL.cleaned.pca.RDS", compress=TRUE)		
+# DATA.cleaned.pca <- readRDS(file="rds/ALL.cleaned.pca.RDS")
+indiv <- as.data.frame(DATA.cleaned.pca$ind$coord)
+indiv <- cbind(indiv, DATA.cleaned[,3073:3076])
+
+
+#------ Plot
+s1 <- fviz_pca_ind(DATA.cleaned.pca, 
+				axes = c(1, 2), col.ind=DATA.cleaned$Corpus, 
+				geom.ind="point", alpha.ind=0.05) +
+				xlim(-100,100) + ylim(-100,100)
+s2 <- fviz_pca_ind(DATA.cleaned.pca, 
+				axes = c(1, 3), col.ind=DATA.cleaned$Corpus, 
+				geom.ind="point", alpha.ind=0.05)  +
+				xlim(-100,100) + ylim(-100,100)
+s3 <- fviz_pca_ind(DATA.cleaned.pca, 
+				axes = c(2, 3), col.ind=DATA.cleaned$Corpus, 
+				geom.ind="point", alpha.ind=0.05)  +
+				xlim(-100,100) + ylim(-100,100)
+s4 <- fviz_pca_ind(DATA.cleaned.pca, 
+				axes = c(1, 4), col.ind=DATA.cleaned$Corpus, 
+				geom.ind="point", alpha.ind=0.05) +
+				xlim(-100,100) + ylim(-100,100)
+
+s <- arrangeGrob(s1, s2, s3, s4, ncol=2,
+		top="ACP l'ensemble des images")
+ggsave(file="images/ALL.cleaned.pca.png", s, dpi=500, device="png", width=10, height=10)
+ggsave(file="images/ALL.cleaned.pca.dim1-2.png", s1, dpi=500, device="png", width=10, height=10)
+
+s1a <- fviz_pca_ind(DATA.cleaned.pca, 
+				axes = c(1, 2), col.ind=DATA.cleaned$Corpus, 
+				geom.ind="point", alpha.ind=0.05, 
+				addEllipses=TRUE, ellipse.level=0.8) +
+				xlim(-100,100) + ylim(-100,100)
+ggsave(file="images/ALL.cleaned.pca.dim1-2.ellipse.png", s1a, dpi=500, device="png", width=10, height=10)
+
+
+s1b <- s1a + 
+	geom_point(data = indiv %>% filter(indiv$Type1 == "Pape"), 
+			aes(x=Dim.1, y=Dim.2), 
+			color="blue", size=1, shape=5, alpha=0.4)
+s1b
+ggsave(file="images/ALL.cleaned.pca.dim1-2.pape-bleu.png", s1b, dpi=500, device="png", width=10, height=10)
+
+
+w <- ggplot(indiv, aes(x=Dim.1, y=Dim.2)) + 
+			geom_point(color="grey", alpha=0.3)
+w1 <- w + 
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1099 & indiv$Date  < 1150 & indiv$Type == "Pape"), aes(color="Pape, entre 1100 et 1149"), alpha=0.5) +
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1149 & indiv$Date  < 1200 & indiv$Type == "Pape"), aes(color="Pape, entre 1150 et 1199"), alpha=0.5) +
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1199 & indiv$Date < 1250 & indiv$Type == "Pape"), aes(color="Pape, entre 1200 et 1249"), alpha=0.5) +
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1249 & indiv$Type == "Pape"), aes(color="Pape, entre 1249 et 1500"), alpha=0.5)
+#w1
+w2 <- w1 + 
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1099 & indiv$Date  < 1150 & indiv$Type != "Pape"), pch=3, aes(color="Non Pape, entre 1100 et 1149"), size=0.5, alpha=0.1) +
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1149 & indiv$Date  < 1200 & indiv$Type != "Pape"), pch=3, aes(color="Non Pape, entre 1150 et 1199"),  size=0.5, alpha=0.1) +
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1199 & indiv$Date < 1250 & indiv$Type != "Pape"), pch=3, aes(color="Non Pape, entre 1200 et 1249"),  size=0.5, alpha=0.1) +
+	geom_point(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1249 & indiv$Type != "Pape"), pch=3, aes(color="Non Pape, entre 1249 et 1500"),  size=0.5, alpha=0.1)
+#w2
+w3 <- w2 + 
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1099 & indiv$Date  < 1150 & indiv$Type != "Pape"), level=0.4, aes(color="Non Pape, entre 1100 et 1149"), alpha=1, lwd=0.8) +
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1149 & indiv$Date  < 1200 & indiv$Type != "Pape"), level=0.4, aes(color="Non Pape, entre 1150 et 1199"), alpha=1, lwd=0.8) +
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1199 & indiv$Date < 1250 & indiv$Type != "Pape"), level=0.4, aes(color="Non Pape, entre 1200 et 1249"), alpha=1, lwd=0.8) +
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1249 & indiv$Type != "Pape"), level=0.4, aes(color="Non Pape, entre 1249 et 1500"),  alpha=1, lwd=0.8)
+#w3
+w4 <- w3 + 
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1099 & indiv$Date  < 1150 & indiv$Type == "Pape"), level=0.4, aes(color="Pape, entre 1100 et 1149"), alpha=1, lwd=0.8) +
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1149 & indiv$Date  < 1200 & indiv$Type == "Pape"), level=0.4, aes(color="Pape, entre 1150 et 1199"), alpha=1, lwd=0.8) +
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1199 & indiv$Date < 1250 & indiv$Type == "Pape"), level=0.4, aes(color="Pape, entre 1200 et 1249"), alpha=1, lwd=0.8) +
+	stat_ellipse(data = . %>% filter(indiv$Corpus == "LBA" & indiv$Date > 1249 & indiv$Type == "Pape"), level=0.4, aes(color="Pape, entre 1249 et 1500"), alpha=1, lwd=0.8)
+#w4
+w5 <- w4 + 
+	scale_color_manual(values = c("#66ff66", "#00e600", "#00b300", "#008000", "orange", "red", "purple", "blue")) +
+	xlim(-50,75) + ylim(-100,50) +
+	theme_void()
+w5
+
+ggsave(file="images/ALL.cleaned.pca.dim1-2.papeLBA.ellipse0.4.chrono.png", plot=w5, dpi=300, device="png", width=20, height=10)
+
+
+#--------------------------------------------------------------------------------------------------------
+#-------- RTSNE  -------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------
+
+dim(DATA.cleaned)																					#48636 rows
+
+#1. remove NA and uncomplete 																					
+DATA.cleaned.uncompletecases <- DATA.cleaned[!complete.cases(DATA.cleaned[,1:3072]),]				
+dim(DATA.cleaned.uncompletecases)																	#2 rows
+remove <- rownames(DATA.cleaned.uncompletecases)
+DATA.cleaned.completecases  <- DATA.cleaned[ !(rownames(DATA.cleaned) %in% remove), ]
+dim(DATA.cleaned.completecases) 																	# 48634  rows, 3076 cols. (features and metadata)
+							
+#2. remove duplicates
+DATA.cleaned.completecases$Image <- rownames(DATA.cleaned.completecases)
+data <- DATA.cleaned.completecases 
+rownames(data) <- NULL
+data <- data[!duplicated(data[,c(1:3072)]),]
+saveRDS(data, file="rds/DATA.cleaned.preparedforRtsne", compress=TRUE)		
+# data <- readRDS(file="rds/DATA.cleaned.preparedforRtsne.RDS")										#48601 rows
+
+
+#3. Rtsne
+set.seed(4000)
+data.Rtsne <- Rtsne(data[,1:3072], 
+				#theta=0.0, 
+				theta=0.01, 
+				#theta=0.1, 
+				pca_scale = TRUE)
+						#seed, theta and pca_scale are very important for an accurate and reproducible result
+						#theta=0.0 is the reason why we have used RTSNE rather than the other library
+#saveRDS(data.Rtsne, file="rds/DATA.cleaned.Rtsne.seed4000.theta0.0.RDS", compress=TRUE)		
+#saveRDS(data.Rtsne, file="rds/DATA.cleaned.Rtsne.seed4000.theta0.01.RDS", compress=TRUE)		
+saveRDS(data.Rtsne, file="rds/DATA.cleaned.Rtsne.seed4000.theta0.1.RDS", compress=TRUE)		
+
+# data.Rtsne <- readRDS(file="rds/DATA.cleaned.Rtsne.seed4000.theta0.01.RDS")
+# data.Rtsne <- readRDS(file="rds/DATA.cleaned.Rtsne.seed4000.theta0.1.RDS")
+
+#----- Convert the result into dataframe and retrieve descriptive metadata	
+
+data.Rtsne.frame <- data.frame(x = data.Rtsne$Y[,1], y = data.Rtsne$Y[,2])
+rownames(data.Rtsne.frame) <- rownames(data)
+data.Rtsne.frame <- cbind(data.Rtsne.frame, data$Corpus, data$Volume, data$Date, data$Type1)
+colnames(data.Rtsne.frame) <- c("x", "y", "Corpus", "Volume", "Date","Auteur")
+head(data.Rtsne.frame)
+
+
+#-------- Plot
+
+t <- ggplot(data.Rtsne.frame, aes(x=x, y=y, col=Date, label=rownames(data.Rtsne.frame))) + 
+				geom_point(alpha=0.1)
+t
+#ggsave(t, file="images/ALL.Rtsne.theta0.0.alpha0.1.png", dpi=500, device="png", width=10, height=10) 
+#ggsave(t, file="images/ALL.Rtsne.theta0.01.alpha0.1.png", dpi=500, device="png", width=10, height=10) 
+ggsave(t, file="images/ALL.Rtsne.theta0.1.alpha0.1.png", dpi=500, device="png", width=10, height=10) 
+
+
+#back to Tsne and other pipeline
+t2 <- ggplot(data.Rtsne.frame, aes(x=x, y=y, col=Date, label=rownames(data.Rtsne.frame))) + 
+				geom_point(alpha=0.1) +
+				scale_color_gradientn(
+				limits = c(800,1700), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise", "blue"))
+t2
+ggsave(t2, file="images/ALL.Rtsne.theta0.01.alpha0.1.png", dpi=500, device="png", width=10, height=10) 
+
+
+#-------- Plot (reduced chronology)
+
+data.Rstne.frame.date <- subset(data.Rtsne.frame, Date > 800)
+
+t3 <- ggplot(data.Rstne.frame.date, aes(x=x, y=y, col=Date, shape=Corpus, label=rownames(data.Rstne.frame.date))) + 
+				geom_point(alpha=0.1) +
+				scale_color_gradientn(
+				limits = c(800,1550), colours=c("darkblue", "purple",  "red",  "orange", "yellow", "green", "turquoise", "blue"))
+t3
+ggsave(t3, file="images/ALL.Rtsne.theta0.01.alpha0.1.date-corpus.png", dpi=500, device="png", width=10, height=10) 
+
+
+t4 <- ggplot(data.Rstne.frame.date, aes(x=x, y=y, col=Corpus, label=rownames(data.Rstne.frame.date))) + 
+				geom_point(alpha=0.2) 
+t4
+ggsave(t4, file="images/ALL.Rtsne.theta0.01.alpha0.1.corpus.png", dpi=500, device="png", width=10, height=10) 
+
+
+t5 <- ggplot(data.Rstne.frame.date, aes(x=x, y=y, col=Auteur, label=rownames(data.Rstne.frame.date))) + 
+				geom_point(alpha=0.2) 
+t5
+ggsave(t5, file="images/ALL.Rtsne.theta0.01.alpha0.1.auteur.png", dpi=500, device="png", width=10, height=10) 
+
+
+
+t5 <- ggplot(data.Rstne.frame.date, aes(x=x, y=y, col=Date, label=rownames(data.Rstne.frame.date))) + 
+				geom_point(alpha=0.2) 
+t5
+ggsave(t5, file="images/ALL.Rtsne.theta0.01.alpha0.1.auteur.png", dpi=500, device="png", width=10, height=10) 
+
+
+
+t <- arrangeGrob(t3, t4, ncol=2,
+		top="tSNE sur l'ensemble des images RVAT, AN, LBA, MOM")
+ggsave(file="images/ALL.rtsne.png", 
+				plot=t, 
+				dpi=500, device="png", width=20, height=10)
+
